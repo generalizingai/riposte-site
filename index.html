@@ -377,6 +377,54 @@
   .way em { font-family: var(--mono); font-style: normal; font-size: 0.92em; color: var(--fg); }
   .way .btn { margin-top: auto; }
 
+
+  /* Live demo. Runs against a rate-limited endpoint on my own key, so people can see
+     real output before paying. */
+  .demo { margin-top: 30px; border: 1px solid var(--line-hot); border-radius: 8px; background: var(--panel); overflow: hidden; }
+  .demo-bar {
+    display: flex; align-items: center; gap: 12px; padding: 10px 15px;
+    border-bottom: 1px solid var(--line); background: var(--raised);
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .demo-bar .spacer { flex: 1; }
+  .demo-left { text-transform: none; letter-spacing: 0; color: var(--muted); }
+
+  .demo-presets { display: flex; flex-wrap: wrap; gap: 7px; padding: 14px 15px 0; }
+  .demo-presets button {
+    font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+    background: transparent; border: 1px solid var(--line-hot);
+    border-radius: 4px; padding: 6px 11px; cursor: pointer;
+    transition: color 160ms ease, border-color 160ms ease;
+  }
+  .demo-presets button:hover { color: var(--fg); border-color: var(--fg); }
+
+  .demo-in {
+    display: block; width: 100%; border: 0; resize: vertical; min-height: 62px;
+    padding: 14px 16px; background: transparent; color: var(--fg);
+    font-family: var(--sans); font-size: 15.5px; line-height: 1.6;
+  }
+  .demo-in:focus { outline: none; box-shadow: inset 2px 0 0 var(--beam); }
+  .demo-in::placeholder { color: var(--dim); }
+
+  .demo-actions {
+    display: flex; align-items: center; gap: 12px;
+    padding: 0 15px 14px; border-bottom: 1px solid var(--line);
+  }
+  .demo-count { flex: 1; font-family: var(--mono); font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .demo-actions .btn { font-size: 12.5px; padding: 9px 16px; }
+  .demo-actions .btn:disabled { opacity: .5; cursor: default; transform: none; box-shadow: none; }
+
+  .demo-out { padding: 15px; display: flex; flex-direction: column; gap: 10px; min-height: 54px; }
+  .demo-card { border: 1px solid var(--line); border-radius: 6px; background: var(--void); padding: 12px 14px; }
+  .demo-angle {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--beam); margin-bottom: 7px;
+  }
+  .demo-text { font-size: 15px; line-height: 1.6; }
+  .demo-msg { font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.55; }
+  .demo-msg.bad { color: var(--err); }
+
   /* ---------- footer ---------- */
   footer {
     border-top: 1px solid var(--line);
@@ -560,6 +608,40 @@
 </div>
 
 <div class="shell">
+
+  <section id="try">
+    <p class="kick reveal">try it</p>
+    <h2 class="reveal" data-lag="1">Three real drafts, before you pay anything.</h2>
+    <p class="lede reveal" data-lag="2">
+      This runs the actual model on a real post, on my key, three times a day. The extension
+      itself has no cap and uses yours.
+    </p>
+
+    <div class="demo reveal" data-lag="3">
+      <div class="demo-bar">
+        <span>pick a post, or paste your own</span>
+        <span class="spacer"></span>
+        <span class="demo-left" id="demoLeft"></span>
+      </div>
+
+      <div class="demo-presets" id="demoPresets">
+        <button type="button" data-post="Everyone can build now. Distribution is the only thing left that is hard.">distribution</button>
+        <button type="button" data-post="Most productivity advice is really just advice about how to feel less guilty while working.">productivity</button>
+        <button type="button" data-post="Why do most SaaS free trials convert worse than a single demo call?">saas trials</button>
+      </div>
+
+      <textarea class="demo-in" id="demoIn" rows="2" maxlength="500" spellcheck="false"
+        placeholder="Paste a post from X, or pick one above."></textarea>
+
+      <div class="demo-actions">
+        <span class="demo-count" id="demoCount">0/500</span>
+        <button class="btn" id="demoGo" type="button">Draft three replies</button>
+      </div>
+
+      <div class="demo-out" id="demoOut"></div>
+    </div>
+  </section>
+
   <section id="rules">
     <p class="kick reveal">the ruleset</p>
     <h2 class="reveal" data-lag="1">Twelve things it will not write, whatever you ask.</h2>
@@ -996,6 +1078,86 @@
     }
     calcRange.addEventListener("input", calc);
     calc();
+
+    /* ---------- live demo ----------
+       Points at the Vercel function that holds the API key. Swap DEMO_API for the
+       deployment URL; until then the demo tells the visitor it is offline rather
+       than throwing into the console. */
+    var DEMO_API = "";
+
+    var demoIn = document.getElementById("demoIn");
+    var demoGo = document.getElementById("demoGo");
+    var demoOut = document.getElementById("demoOut");
+    var demoCount = document.getElementById("demoCount");
+    var demoLeft = document.getElementById("demoLeft");
+
+    function demoMsg(text, bad) {
+      demoOut.textContent = "";
+      var p = document.createElement("div");
+      p.className = "demo-msg" + (bad ? " bad" : "");
+      p.textContent = text;
+      demoOut.appendChild(p);
+    }
+
+    function countChars() {
+      demoCount.textContent = demoIn.value.length + "/500";
+    }
+
+    demoIn.addEventListener("input", countChars);
+    countChars();
+
+    [].slice.call(document.querySelectorAll("#demoPresets button")).forEach(function (b) {
+      b.addEventListener("click", function () {
+        demoIn.value = b.dataset.post;
+        countChars();
+        demoIn.focus();
+      });
+    });
+
+    demoGo.addEventListener("click", async function () {
+      var post = demoIn.value.trim();
+      if (!post) { demoMsg("Pick a post above, or paste one.", true); return; }
+      if (!DEMO_API) { demoMsg("The live demo is not switched on yet. The extension itself is ready.", true); return; }
+
+      demoGo.disabled = true;
+      demoGo.textContent = "Drafting";
+      demoMsg("Reading the post and writing three replies…");
+
+      try {
+        var res = await fetch(DEMO_API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ post: post }),
+        });
+        var data = await res.json();
+
+        if (!res.ok) { demoMsg(data.error || "That did not work. Try again.", true); return; }
+
+        demoOut.textContent = "";
+        data.replies.forEach(function (r) {
+          var card = document.createElement("div");
+          card.className = "demo-card";
+          var angle = document.createElement("div");
+          angle.className = "demo-angle";
+          angle.textContent = r.angle || "draft";
+          var text = document.createElement("div");
+          text.className = "demo-text";
+          text.textContent = r.text;
+          card.appendChild(angle);
+          card.appendChild(text);
+          demoOut.appendChild(card);
+        });
+
+        if (typeof data.left === "number") {
+          demoLeft.textContent = data.left + " left today";
+        }
+      } catch (e) {
+        demoMsg("Could not reach the demo. Check your connection.", true);
+      } finally {
+        demoGo.disabled = false;
+        demoGo.textContent = "Draft three replies";
+      }
+    });
   })();
 </script>
 <script src="https://app.lemonsqueezy.com/js/lemon.js" defer></script>
